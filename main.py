@@ -43,14 +43,20 @@ def find_post(id):
 async def root():
     return {"message": "Hello World"}
 
-@app.get("/post")
+@app.get("/posts")
 async def get_posts():
+    cursor.execute(""" SELECT * FROM posts """)
+    posts= cursor.fetchall()
+    print(posts)
     return {"data": my_posts}
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 def create_posts(post:Post):
     cursor.execute(""" INSERT INTO posts (title, content, published) VALUES(%s, %s, %s) RETURNING * """,(post.title, post.content, post.published))
-    new_post=cursor.fetchone()    
+    new_post=cursor.fetchone()   
+    
+    conn.commit()
+     
     return{"data":new_post}
 
 @app.get("/posts/latest")
