@@ -7,44 +7,19 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 from sqlalchemy.orm import Session
+import database
 import models
-from database import engine, get_db
+from database import get_db
 
-models.Base.metadata.create_all(bind=engine)
+database.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
-
-
 class Post(BaseModel):
-    title:str
-    content:str
-    published:str
-   
-while True:
-    
-    try:
-        conn =psycopg2.connect(host='localhost', database='fastapi',user='postgres',
-        password='postgres',cursor_factory=RealDictCursor)
-        cursor=conn.cursor()
-        print('Database Connection Successful')
-        break
-    except Exception as error:
-        print('Connection to the database failed')
-        print("Error: ", error)
-        time.sleep(5)
-    
-my_posts=[
-    {"title":"title of post 1","content":"content of post1", "id":1},
-    {"title":"Favourite foods","content":"I like pizza", "id":2},
-    {"title":"Tropical Climate","content":"It can get as hot as 45c", "id":3},
+    title: str
+    content: str
+    published: str
 
-]
-
-def find_post(id):
-    for p in my_posts:
-        if p["id"]== id:
-            return p
 
 @app.get("/")
 async def root():
@@ -52,32 +27,32 @@ async def root():
 
 @app.get("/sqlalchemy")
 def test_posts(db: Session = Depends(get_db)):
-    return {"status":"success"}
+    # making a query
+    posts = db.query(models.Post).all()
+    print(posts)
+    return {"data": posts}
 
 @app.get("/posts")
-async def get_posts():
-    cursor.execute(""" SELECT * FROM posts """)
-    posts= cursor.fetchall()
-    print(posts)
-    return {"data": my_posts}
+async def get_posts(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
+    return {"data": posts}
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post:Post):
-    cursor.execute(""" INSERT INTO posts (title, content, published) VALUES(%s, %s, %s) RETURNING * """,(post.title, post.content, post.published))
-    new_post=cursor.fetchone()   
-    
-    conn.commit()
-     
-    return{"data":new_post}
+def create_posts(post: Post, db: Session = Depends(get_db)):
+    new_post = models.Post(title=post.title, content=post.content, published=post.published)
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return {"data": new_post}
 
 @app.get("/posts/latest")
 def get_latest_post():
-    post=my_posts[len(my_posts)-1]
-    return{"detail":post}
+    post = my_posts[len(my_posts) - 1]
+    return {"detail": post}
 
 @app.get("/posts/{id}")
-def get_post(id:int, response:Response):
-    post=find_post(id)
+def get_post(id: int, response: Response, db: Session = Depends(get_db)):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
     if not post:
         response.status_code = 404
-    return{"post_detail":post}
+    return {"post_detail": post.dict()}
